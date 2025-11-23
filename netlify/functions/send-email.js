@@ -122,8 +122,6 @@ exports.handler = async (event, context) => {
 
     const excelBuffer = createExcelBuffer(formData);
 
-    const excelBuffer = createExcelBuffer(formData);
-
     // ارسال به ایمیل Admin
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
