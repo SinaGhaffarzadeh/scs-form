@@ -40,6 +40,9 @@
 
 .sectionGroup {
   width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .sectionItem {
@@ -72,6 +75,27 @@
   box-shadow: 0 4px 20px rgba(120, 119, 198, 0.3);
 }
 
+.sectionText {
+  display: inline-block;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+  direction: ltr;
+  text-decoration: none;
+}
+
+.sectionText:hover {
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+.sectionText.active {
+  color: rgba(120, 119, 198, 0.9);
+}
+
 .mainSection {
   font-size: 1.25rem;
   font-weight: 600;
@@ -95,6 +119,21 @@
 .socialIcon:hover {
   color: rgba(120, 119, 198, 0.8);
   transform: translateY(-2px);
+}
+
+.footer {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%;
+  text-align: center;
+}
+
+.footerText {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.875rem;
+  margin: 0;
+  direction: ltr;
 }
 
 @media (max-width: 768px) {
@@ -129,6 +168,15 @@
   .socialIcon {
     width: 20px;
     height: 20px;
+  }
+
+  .footer {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+  }
+
+  .footerText {
+    font-size: 0.75rem;
   }
 }
 

@@ -29,31 +29,80 @@ exports.handler = async (event, context) => {
 
   try {
     const data = JSON.parse(event.body);
-    const { from_name, user_email, phone, message } = data;
-
-    if (!from_name || !user_email || !message) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'فیلدهای ضروری را پر کنید' })
+    
+    // بررسی اینکه آیا داده‌های فرم جدید (تایید کار ماهانه) است یا فرم قدیم (تماس)
+    const isApprovalForm = data.professorName && data.studentName;
+    
+    let formData, emailSubject, emailHtml, userEmail, userName, studentName, monthYear, approvalStatus;
+    
+    if (isApprovalForm) {
+      // فرم تایید کار ماهانه پژوهشگران
+      const { professorName, professorEmail, projectTitle, studentName: student, month, year, monthYear: monthYearValue, approvalStatus: status } = data;
+      studentName = student;
+      monthYear = monthYearValue;
+      approvalStatus = status;
+      
+      if (!professorName || !professorEmail || !studentName || !approvalStatus) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: 'فیلدهای ضروری را پر کنید' })
+        };
+      }
+      
+      const approvalStatusText = approvalStatus === 'approved' ? 'تایید' : 'عدم تایید';
+      
+      formData = {
+        'نام استاد': professorName,
+        'ایمیل استاد': professorEmail,
+        'عنوان پروژه': projectTitle,
+        'نام دانشجو': studentName,
+        'ماه': month,
+        'سال': year,
+        'ماه و سال': monthYear,
+        'وضعیت تایید': approvalStatusText,
+        'تاریخ ثبت': new Date().toLocaleString('fa-IR')
       };
-    }
-
-    const formData = {
-      'نام': from_name,
-      'ایمیل': user_email,
-      'تلفن': phone || '-',
-      'پیام': message,
-      'تاریخ': new Date().toLocaleString('fa-IR')
-    };
-
-    const excelBuffer = createExcelBuffer(formData);
-
-    // ارسال به ایمیل Admin
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: process.env.ADMIN_EMAIL,
-      subject: `📋 فرم جدید از ${from_name}`,
-      html: `
+      
+      userName = professorName;
+      userEmail = professorEmail;
+      emailSubject = `📋 فرم تایید کار ماهانه - ${studentName}`;
+      emailHtml = `
+        <div dir="rtl" style="font-family: Tahoma, Arial; padding: 20px; background: #f5f5f5;">
+          <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #667eea; border-bottom: 3px solid #667eea; padding-bottom: 10px;">فرم تایید کار ماهانه پژوهشگران</h2>
+            <p><strong>👤 نام استاد:</strong> ${professorName}</p>
+            <p><strong>📧 ایمیل استاد:</strong> ${professorEmail}</p>
+            <p><strong>📋 عنوان پروژه:</strong> ${projectTitle}</p>
+            <p><strong>👥 نام دانشجو:</strong> ${studentName}</p>
+            <p><strong>📅 ماه و سال:</strong> ${monthYear}</p>
+            <p><strong>✅ وضعیت تایید:</strong> <span style="color: ${approvalStatus === 'approved' ? '#28a745' : '#dc3545'}; font-weight: bold;">${approvalStatusText}</span></p>
+            <p><strong>🕐 تاریخ ثبت:</strong> ${formData['تاریخ ثبت']}</p>
+          </div>
+        </div>
+      `;
+    } else {
+      // فرم تماس قدیم
+      const { from_name, user_email, phone, message } = data;
+      
+      if (!from_name || !user_email || !message) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: 'فیلدهای ضروری را پر کنید' })
+        };
+      }
+      
+      formData = {
+        'نام': from_name,
+        'ایمیل': user_email,
+        'تلفن': phone || '-',
+        'پیام': message,
+        'تاریخ': new Date().toLocaleString('fa-IR')
+      };
+      
+      userName = from_name;
+      userEmail = user_email;
+      emailSubject = `📋 فرم جدید از ${from_name}`;
+      emailHtml = `
         <div dir="rtl" style="font-family: Tahoma, Arial; padding: 20px; background: #f5f5f5;">
           <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
             <h2 style="color: #667eea; border-bottom: 3px solid #667eea; padding-bottom: 10px;">فرم جدیدی دریافت شد</h2>
@@ -68,7 +117,19 @@ exports.handler = async (event, context) => {
             </div>
           </div>
         </div>
-      `,
+      `;
+    }
+
+    const excelBuffer = createExcelBuffer(formData);
+
+    const excelBuffer = createExcelBuffer(formData);
+
+    // ارسال به ایمیل Admin
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: process.env.ADMIN_EMAIL,
+      subject: emailSubject,
+      html: emailHtml,
       attachments: [{
         filename: `form_${Date.now()}.xlsx`,
         content: excelBuffer,
@@ -77,26 +138,45 @@ exports.handler = async (event, context) => {
     });
 
     // ارسال به ایمیل کاربر
+    const userEmailHtml = isApprovalForm ? `
+      <div dir="rtl" style="font-family: Tahoma, Arial; padding: 20px; background: #f5f5f5;">
+        <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <h2 style="color: #4CAF50;">سلام ${userName} عزیز،</h2>
+          <p>فرم تایید کار ماهانه شما با موفقیت دریافت شد.</p>
+          <hr style="margin: 20px 0;">
+          <p><strong>📋 اطلاعات فرم:</strong></p>
+          <div style="background: #f0f0f0; padding: 15px; border-radius: 5px;">
+            <p><strong>نام دانشجو:</strong> ${studentName}</p>
+            <p><strong>ماه و سال:</strong> ${monthYear}</p>
+            <p><strong>وضعیت:</strong> ${approvalStatus === 'approved' ? '✅ تایید' : '❌ عدم تایید'}</p>
+          </div>
+          <p style="color: #999; font-size: 12px; margin-top: 20px;">
+            این ایمیل به صورت خودکار ارسال شده است.
+          </p>
+        </div>
+      </div>
+    ` : `
+      <div dir="rtl" style="font-family: Tahoma, Arial; padding: 20px; background: #f5f5f5;">
+        <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <h2 style="color: #4CAF50;">سلام ${userName} عزیز،</h2>
+          <p>فرم شما با موفقیت دریافت شد و در اسرع وقت بررسی خواهد شد.</p>
+          <hr style="margin: 20px 0;">
+          <p><strong>پیام شما:</strong></p>
+          <div style="background: #f0f0f0; padding: 15px; border-radius: 5px;">
+            ${data.message}
+          </div>
+          <p style="color: #999; font-size: 12px; margin-top: 20px;">
+            این ایمیل به صورت خودکار ارسال شده است.
+          </p>
+        </div>
+      </div>
+    `;
+
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: user_email,
-      subject: '✅ تایید دریافت فرم شما',
-      html: `
-        <div dir="rtl" style="font-family: Tahoma, Arial; padding: 20px; background: #f5f5f5;">
-          <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-            <h2 style="color: #4CAF50;">سلام ${from_name} عزیز،</h2>
-            <p>فرم شما با موفقیت دریافت شد و در اسرع وقت بررسی خواهد شد.</p>
-            <hr style="margin: 20px 0;">
-            <p><strong>پیام شما:</strong></p>
-            <div style="background: #f0f0f0; padding: 15px; border-radius: 5px;">
-              ${message}
-            </div>
-            <p style="color: #999; font-size: 12px; margin-top: 20px;">
-              این ایمیل به صورت خودکار ارسال شده است.
-            </p>
-          </div>
-        </div>
-      `,
+      to: userEmail,
+      subject: isApprovalForm ? '✅ تایید دریافت فرم تایید کار ماهانه' : '✅ تایید دریافت فرم شما',
+      html: userEmailHtml,
       attachments: [{
         filename: `form_${Date.now()}.xlsx`,
         content: excelBuffer,

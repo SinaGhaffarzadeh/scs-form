@@ -5,7 +5,7 @@ import styles from './SectionList.module.css';
 const SECTIONS = [
   {
     id: 'form1',
-    title: 'Form 1',
+    title: 'تایید کار ماهانه پژوهشگران',
     subsections: []
   }
 ];
@@ -19,23 +19,23 @@ const SectionList = () => {
 
   return (
     <div className={`${styles.sectionList} ${isDrawerOpen ? styles.withSidebar : ''}`}>
-      <h1 className={styles.mainTitle}>SCS Evaluation Forms</h1>
-      <p className={styles.subtitle}>سیستم مدیریت فرم</p>
+      <h1 className={styles.mainTitle}>SCS Forms</h1>
+      <p className={styles.subtitle}>سامانه مدیریت فرم پژوهشکده علوم شناختی</p>
       <nav className={styles.sections}>
         {SECTIONS.map((section) => {
           const isSectionActive = selectedSection === section.id;
           
           return (
             <div key={section.id} className={styles.sectionGroup}>
-              <button
-                className={`${styles.sectionItem} ${styles.mainSection} ${
+              <span
+                className={`${styles.sectionText} ${
                   isSectionActive ? styles.active : ''
                 }`}
                 onClick={() => handleSectionClick(section.id)}
                 aria-label={`Open ${section.title} section`}
               >
                 {section.title}
-              </button>
+              </span>
             </div>
           );
         })}
@@ -54,6 +54,9 @@ const SectionList = () => {
           <path d="M12 0l-3.668 8.635L0 9.269l6.5 6.364L4.702 24 12 19.635 19.298 24 17.5 15.633 24 9.269l-8.332.366L12 0z"/>
         </svg>
       </div>
+      <footer className={styles.footer}>
+        <p className={styles.footerText}>designed by Sina & Babak❤️</p>
+      </footer>
     </div>
   );
 };

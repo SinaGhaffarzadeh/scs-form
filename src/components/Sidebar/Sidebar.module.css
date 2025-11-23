@@ -22,6 +22,8 @@
   color: #fff;
   margin: 0;
   direction: rtl;
+  text-align: center;
+  flex: 1;
 }
 
 .closeButton {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import ContactForm from '../ContactForm/ContactForm';
+import ProfessorApprovalForm from '../ProfessorApprovalForm/ProfessorApprovalForm';
 import styles from './Sidebar.module.css';
 
 const Sidebar = () => {
@@ -10,7 +10,7 @@ const Sidebar = () => {
     <div className={styles.sidebar}>
       <div className={styles.header}>
         <h2 className={styles.title}>
-          {selectedSection === 'form1' ? 'فرم تماس' : 'انتخاب کنید'}
+          {selectedSection === 'form1' ? 'فرم تایید کار' : 'انتخاب کنید'}
         </h2>
         <button onClick={closeDrawer} className={styles.closeButton} aria-label="Close sidebar">
           ✕
@@ -19,7 +19,7 @@ const Sidebar = () => {
 
       <div className={styles.content}>
         {selectedSection === 'form1' ? (
-          <ContactForm />
+          <ProfessorApprovalForm />
         ) : (
           <div className={styles.emptyState}>
             <p>لطفاً یک بخش را از لیست انتخاب کنید</p>
