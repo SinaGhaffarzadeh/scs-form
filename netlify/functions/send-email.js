@@ -12,7 +12,9 @@ const transporter = nodemailer.createTransport({
 
 // ساخت فایل Excel
 const createExcelBuffer = (data) => {
-  const worksheet = XLSX.utils.json_to_sheet([data]);
+  // اگر data یک آرایه است، مستقیماً استفاده کن، در غیر این صورت آن را در آرایه قرار بده
+  const dataArray = Array.isArray(data) ? data : [data];
+  const worksheet = XLSX.utils.json_to_sheet(dataArray);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'فرم');
   
@@ -31,37 +33,93 @@ exports.handler = async (event, context) => {
     const data = JSON.parse(event.body);
     
     // بررسی اینکه آیا داده‌های فرم جدید (تایید کار ماهانه) است یا فرم قدیم (تماس)
-    const isApprovalForm = data.professorName && data.studentName;
+    const isApprovalForm = data.professorName && (data.students || data.studentName);
+    const isNewApprovalForm = data.professorName && data.students; // فرم جدید با لیست دانشجویان
     
     let formData, emailSubject, emailHtml, userEmail, userName, studentName, monthYear, approvalStatus;
     
     if (isApprovalForm) {
       // فرم تایید کار ماهانه پژوهشگران
-      const { professorName, professorEmail, projectTitle, studentName: student, month, year, monthYear: monthYearValue, approvalStatus: status } = data;
-      studentName = student;
-      monthYear = monthYearValue;
-      approvalStatus = status;
-      
-      if (!professorName || !professorEmail || !studentName || !approvalStatus) {
-        return {
-          statusCode: 400,
-          body: JSON.stringify({ error: 'فیلدهای ضروری را پر کنید' })
+      if (isNewApprovalForm) {
+        // فرم جدید با لیست دانشجویان
+        const { professorName, professorEmail, projectTitle, students, month, year, monthYear: monthYearValue, description } = data;
+        monthYear = monthYearValue;
+        
+        if (!professorName || !professorEmail || !students || students.length === 0) {
+          return {
+            statusCode: 400,
+            body: JSON.stringify({ error: 'فیلدهای ضروری را پر کنید' })
+          };
+        }
+        
+        // ایجاد یک ردیف برای هر دانشجو
+        const registrationDate = new Date().toLocaleString('fa-IR');
+        formData = students.map(s => {
+          const statusText = s.approvalStatus === 'approved' ? 'تایید' : 'عدم تایید';
+          return {
+            'نام استاد': professorName,
+            'ایمیل استاد': professorEmail,
+            'عنوان پروژه': projectTitle || '-',
+            'نام دانشجو': s.studentName,
+            'وضعیت تایید': statusText,
+            'توضیحات': description || '-',
+            'تاریخ ثبت': registrationDate
+          };
+        });
+        
+        userName = professorName;
+        userEmail = professorEmail;
+        emailSubject = `📋 فرم تایید کار ماهانه - ${professorName}`;
+        
+        // ساخت HTML ایمیل برای فرم جدید
+        const studentsHtml = students.map(s => {
+          const statusText = s.approvalStatus === 'approved' ? 'تایید' : 'عدم تایید';
+          const statusColor = s.approvalStatus === 'approved' ? '#28a745' : '#dc3545';
+          return `<p style="margin: 5px 0;"><strong>👥 ${s.studentName}:</strong> <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></p>`;
+        }).join('');
+        
+        emailHtml = `
+          <div dir="rtl" style="font-family: Tahoma, Arial; padding: 20px; background: #f5f5f5;">
+            <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+              <h2 style="color: #667eea; border-bottom: 3px solid #667eea; padding-bottom: 10px;">فرم تایید کار ماهانه پژوهشگران</h2>
+              <p><strong>👤 نام استاد:</strong> ${professorName}</p>
+              <p><strong>📧 ایمیل استاد:</strong> ${professorEmail}</p>
+              <p><strong>📋 عنوان پروژه:</strong> ${projectTitle || '-'}</p>
+              <p><strong>👥 دانشجویان:</strong></p>
+              <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                ${studentsHtml}
+              </div>
+              <p><strong>📅 ماه و سال:</strong> ${monthYear}</p>
+              ${description ? `<p><strong>📝 توضیحات:</strong></p><div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 10px 0; border-right: 4px solid #667eea;">${description}</div>` : ''}
+              <p><strong>🕐 تاریخ ثبت:</strong> ${formData['تاریخ ثبت']}</p>
+            </div>
+          </div>
+        `;
+      } else {
+        // فرم قدیم با یک دانشجو
+        const { professorName, professorEmail, projectTitle, studentName: student, month, year, monthYear: monthYearValue, approvalStatus: status } = data;
+        studentName = student;
+        monthYear = monthYearValue;
+        approvalStatus = status;
+        
+        if (!professorName || !professorEmail || !studentName || !approvalStatus) {
+          return {
+            statusCode: 400,
+            body: JSON.stringify({ error: 'فیلدهای ضروری را پر کنید' })
+          };
+        }
+        
+        const approvalStatusText = approvalStatus === 'approved' ? 'تایید' : 'عدم تایید';
+        
+        formData = {
+          'نام استاد': professorName,
+          'ایمیل استاد': professorEmail,
+          'عنوان پروژه': projectTitle,
+          'نام دانشجو': studentName,
+          'وضعیت تایید': approvalStatusText,
+          'توضیحات': '-',
+          'تاریخ ثبت': new Date().toLocaleString('fa-IR')
         };
-      }
-      
-      const approvalStatusText = approvalStatus === 'approved' ? 'تایید' : 'عدم تایید';
-      
-      formData = {
-        'نام استاد': professorName,
-        'ایمیل استاد': professorEmail,
-        'عنوان پروژه': projectTitle,
-        'نام دانشجو': studentName,
-        'ماه': month,
-        'سال': year,
-        'ماه و سال': monthYear,
-        'وضعیت تایید': approvalStatusText,
-        'تاریخ ثبت': new Date().toLocaleString('fa-IR')
-      };
       
       userName = professorName;
       userEmail = professorEmail;
@@ -136,7 +194,24 @@ exports.handler = async (event, context) => {
     });
 
     // ارسال به ایمیل کاربر
-    const userEmailHtml = isApprovalForm ? `
+    const userEmailHtml = isApprovalForm ? (isNewApprovalForm ? `
+      <div dir="rtl" style="font-family: Tahoma, Arial; padding: 20px; background: #f5f5f5;">
+        <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <h2 style="color: #4CAF50;">سلام ${userName} عزیز،</h2>
+          <p>فرم تایید کار ماهانه شما با موفقیت دریافت شد.</p>
+          <hr style="margin: 20px 0;">
+          <p><strong>📋 اطلاعات فرم:</strong></p>
+          <div style="background: #f0f0f0; padding: 15px; border-radius: 5px;">
+            <p><strong>ماه و سال:</strong> ${monthYear}</p>
+            <p><strong>تعداد دانشجویان:</strong> ${data.students.length}</p>
+            ${data.description ? `<p><strong>توضیحات:</strong> ${data.description}</p>` : ''}
+          </div>
+          <p style="color: #999; font-size: 12px; margin-top: 20px;">
+            این ایمیل به صورت خودکار ارسال شده است.
+          </p>
+        </div>
+      </div>
+    ` : `
       <div dir="rtl" style="font-family: Tahoma, Arial; padding: 20px; background: #f5f5f5;">
         <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
           <h2 style="color: #4CAF50;">سلام ${userName} عزیز،</h2>
@@ -153,7 +228,7 @@ exports.handler = async (event, context) => {
           </p>
         </div>
       </div>
-    ` : `
+    `) : `
       <div dir="rtl" style="font-family: Tahoma, Arial; padding: 20px; background: #f5f5f5;">
         <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
           <h2 style="color: #4CAF50;">سلام ${userName} عزیز،</h2>

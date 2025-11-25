@@ -51,6 +51,19 @@
   .drawer {
     width: 100%;
     left: -100%;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    overscroll-behavior: contain; /* Prevent scroll chaining */
+  }
+
+  .overlay {
+    backdrop-filter: blur(4px);
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .drawer {
+    touch-action: pan-y; /* Allow vertical scrolling */
   }
 }
 
