@@ -22,9 +22,26 @@ const createExcelBuffer = (data) => {
 };
 
 exports.handler = async (event, context) => {
+  // اضافه کردن CORS headers
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
+  // Handle preflight requests
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers,
+      body: ''
+    };
+  }
+
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
+      headers,
       body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
@@ -48,6 +65,7 @@ exports.handler = async (event, context) => {
         if (!professorName || !professorEmail || !students || students.length === 0) {
           return {
             statusCode: 400,
+            headers,
             body: JSON.stringify({ error: 'فیلدهای ضروری را پر کنید' })
           };
         }
@@ -91,7 +109,7 @@ exports.handler = async (event, context) => {
               </div>
               <p><strong>📅 ماه و سال:</strong> ${monthYear}</p>
               ${description ? `<p><strong>📝 توضیحات:</strong></p><div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 10px 0; border-right: 4px solid #667eea;">${description}</div>` : ''}
-              <p><strong>🕐 تاریخ ثبت:</strong> ${formData['تاریخ ثبت']}</p>
+              <p><strong>🕐 تاریخ ثبت:</strong> ${registrationDate}</p>
             </div>
           </div>
         `;
@@ -105,6 +123,7 @@ exports.handler = async (event, context) => {
         if (!professorName || !professorEmail || !studentName || !approvalStatus) {
           return {
             statusCode: 400,
+            headers,
             body: JSON.stringify({ error: 'فیلدهای ضروری را پر کنید' })
           };
         }
@@ -145,6 +164,7 @@ exports.handler = async (event, context) => {
       if (!from_name || !user_email || !message) {
         return {
           statusCode: 400,
+          headers,
           body: JSON.stringify({ error: 'فیلدهای ضروری را پر کنید' })
         };
       }
@@ -259,6 +279,7 @@ exports.handler = async (event, context) => {
 
     return {
       statusCode: 200,
+      headers,
       body: JSON.stringify({ 
         success: true,
         message: 'فرم با موفقیت ارسال شد!'
@@ -269,6 +290,7 @@ exports.handler = async (event, context) => {
     console.error('Error:', error);
     return {
       statusCode: 500,
+      headers,
       body: JSON.stringify({ 
         error: 'خطا در ارسال فرم',
         details: error.message 
