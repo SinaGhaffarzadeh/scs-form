@@ -1,14 +1,21 @@
 const nodemailer = require('nodemailer');
 const XLSX = require('xlsx');
 
-// تنظیمات SMTP
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
+// تابع برای ساخت transporter (باید داخل handler صدا زده شود)
+const createTransporter = () => {
+  // بررسی Environment Variables
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+    throw new Error('Environment Variables تنظیم نشده‌اند. لطفاً EMAIL_USER و EMAIL_PASSWORD را در Netlify تنظیم کنید.');
   }
-});
+
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD
+    }
+  });
+};
 
 // ساخت فایل Excel
 const createExcelBuffer = (data) => {
@@ -47,7 +54,43 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const data = JSON.parse(event.body);
+    // بررسی Environment Variables
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD || !process.env.ADMIN_EMAIL) {
+      console.error('Environment Variables missing:', {
+        EMAIL_USER: !!process.env.EMAIL_USER,
+        EMAIL_PASSWORD: !!process.env.EMAIL_PASSWORD,
+        ADMIN_EMAIL: !!process.env.ADMIN_EMAIL
+      });
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Environment Variables تنظیم نشده‌اند',
+          details: 'لطفاً EMAIL_USER، EMAIL_PASSWORD و ADMIN_EMAIL را در Netlify تنظیم کنید.'
+        })
+      };
+    }
+
+    // بررسی body
+    if (!event.body) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'بدون داده', details: 'لطفاً داده‌های فرم را ارسال کنید.' })
+      };
+    }
+
+    let data;
+    try {
+      data = JSON.parse(event.body);
+    } catch (parseError) {
+      console.error('JSON Parse Error:', parseError);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'داده‌های نامعتبر', details: 'لطفاً فرم را دوباره پر کنید.' })
+      };
+    }
     
     // بررسی اینکه آیا داده‌های فرم جدید (تایید کار ماهانه) است یا فرم قدیم (تماس)
     const isApprovalForm = data.professorName && (data.students || data.studentName);
@@ -200,6 +243,9 @@ exports.handler = async (event, context) => {
 
     const excelBuffer = createExcelBuffer(formData);
 
+    // ساخت transporter
+    const transporter = createTransporter();
+
     // ارسال به ایمیل Admin
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
@@ -287,13 +333,34 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
+    // بررسی نوع خطا
+    let errorMessage = 'خطا در ارسال فرم';
+    let errorDetails = error.message;
+    
+    if (error.message.includes('Environment Variables')) {
+      errorMessage = 'تنظیمات ناقص است';
+      errorDetails = 'لطفاً Environment Variables را در Netlify تنظیم کنید.';
+    } else if (error.message.includes('Invalid login') || error.message.includes('authentication')) {
+      errorMessage = 'خطا در احراز هویت Gmail';
+      errorDetails = 'لطفاً App Password را بررسی کنید.';
+    } else if (error.message.includes('ECONNECTION') || error.message.includes('ETIMEDOUT')) {
+      errorMessage = 'خطا در اتصال به سرور ایمیل';
+      errorDetails = 'لطفاً اتصال اینترنت را بررسی کنید.';
+    }
+    
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
-        error: 'خطا در ارسال فرم',
-        details: error.message 
+        error: errorMessage,
+        details: errorDetails,
+        type: error.name || 'UnknownError'
       })
     };
   }
